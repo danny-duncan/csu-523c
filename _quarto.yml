@@ -1,0 +1,12 @@
+---
+project:
+  type: website
+  output-dir: docs
+
+website:
+  title: "csu-523c"
+  
+author:
+  name: Daniel Duncan
+  email: d.duncan@colostate.edu
+---
