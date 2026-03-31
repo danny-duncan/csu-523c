@@ -121,17 +121,17 @@ The data is already in your hands. Let's use it.
 
 ```{r}
 #| label: data-pull
-#| cache: true
+#| cache: false
 
 gauges <- tribble(
   ~site_no,     ~name,                           ~state,
   "09380000",   "Colorado R at Lees Ferry",      "AZ",
   "09163500",   "Colorado R near CO-UT border",  "CO",
-  "09085000",   "Colorado R at Glenwood Springs","CO",
+  "09085000",   "Roaring Fork at Glenwood Springs","CO",
   "09306500",   "White R near Watson",           "UT",
   "09379500",   "San Juan R near Bluff",         "UT",
-  "09402500",   "Little Colorado R near Cameron","AZ",
-  "09423000",   "Colorado R below Hoover Dam",   "NV"
+  "09402500",   "Colorado River near Grand Canyon","AZ",
+  "09423000",   "Colorado R near Davis Dam",   "NV"
 )
 
 raw <- readNWISdv(
@@ -184,7 +184,8 @@ with `class()` before using date arithmetic or `filter()`.
 :::
 
 ```{r}
-my.date <- as.Date("2023-09-01")
+my.date <- as.Date("2023-09-01") 
+class(my.date)
 ```
 
 **b.** Compute the **day-over-day change in discharge** for each gauge —
@@ -205,13 +206,11 @@ Flow).
 :::
 
 ```{r}
-
-```
-
-```{r}
-# student: create two flextables for `my.date`
-# e.g., table1 <- flow |> filter(Date == my.date) |> slice_max(Flow, n = 5)
-# and then pass to `flextable()` with `set_header_labels()` and `autofit()`
+flow <- raw |> 
+  group_by(site_no) |> 
+  arrange(Date) |> 
+  mutate(flow_delta = Flow - lag(Flow)) |>
+  ungroup()
 ```
 
 ```{r}
@@ -243,6 +242,31 @@ and `round()` to tidy numeric columns before rendering.
 :::
 
 ```{r}
+# Table 1: 5 gauges with highest current discharge
+highest_flow <- flow |> 
+  filter(Date == my.date) |>  
+  slice_max(Flow, n = 5) |> 
+  select(name, state, Flow) |> 
+  mutate(Flow = round(Flow, 0))
+
+highest_flow |>
+  flextable() |>
+  set_header_labels(name = "Gauge", state = "State", Flow = "Flow (cfs)") |>
+  set_caption(paste0("Top 5 Gauges with Highest Discharge on ", my.date)) |>
+  autofit() 
+
+# Table 2: 5 gauges with greatest day-over-day increase
+greatest_increase <- flow |> 
+  filter(Date == my.date) |> 
+  slice_max(flow_delta, n = 5) |> 
+  select(name, state, flow_delta) |> 
+  mutate(flow_delta = round(flow_delta, 0))
+
+greatest_increase |>
+  flextable() |>
+  set_header_labels(name = "Gauge", state = "State", flow_delta = "Day-over-Day Change (cfs)") |>
+  set_caption(paste0("Top 5 Gauges with Greatest Day-over-Day Increase on ", my.date))|>
+  autofit()
 
 ```
 
@@ -290,7 +314,7 @@ Before writing a single `_join()` call, answer three questions:
 ## The four joins — and when to use each
 
 | Function | Keeps rows from... | Non-matching rows |
-|----|----|----|
+|------------------------|------------------------|------------------------|
 | `left_join(x, y)` | All of `x` | `y` columns filled with `NA` |
 | `right_join(x, y)` | All of `y` | `x` columns filled with `NA` |
 | `inner_join(x, y)` | Only rows matching in **both** | Dropped entirely |
@@ -315,7 +339,7 @@ silently inflate your row count.
 
 ```{r}
 #| label: site-meta
-#| cache: true
+#| cache: false
 
 site_meta <- readNWISsite(gauges$site_no) |>
   select(
@@ -351,6 +375,8 @@ Use the join type that keeps **all flow records** regardless of whether
 metadata is available.
 
 ```{r}
+flow_meta <- flow |> 
+  left_join(site_meta, by = "site_no")
 
 ```
 
@@ -396,7 +422,19 @@ every lab this semester. Build the habit now.
 :::
 
 ```{r}
+#| eval: false
+nrow(flow_meta) == nrow(flow)
 
+flow_meta |>
+  summarize(
+    n_total        = n(),
+    n_missing_area = sum(is.na(drain_area_va)),
+    pct_complete   = round(100 * mean(!is.na(drain_area_va)), 1)
+  )
+
+flow_meta |>
+  filter(site_no == "09379500") |>
+  distinct(site_no, name, drain_area_va)
 ```
 
 ------------------------------------------------------------------------
@@ -412,7 +450,8 @@ expressing flow per unit area: cfs per square mile.
 `flow_per_sqmi = Flow / drain_area_va`.
 
 ```{r}
-
+flow_meta <- flow_meta |> 
+  mutate(flow_per_sqmi = Flow / drain_area_va)
 ```
 
 **b.** On `my.date`, build a flextable showing **both raw and normalized
@@ -429,16 +468,48 @@ before rendering tables.
 :::
 
 ```{r}
+rankings <- flow_meta |> 
+  filter(Date == my.date) |> 
+  select(name, Flow, drain_area_va, flow_per_sqmi) |> 
+  mutate(
+    raw_rank = rank(-Flow),
+    norm_rank = rank(-flow_per_sqmi)
+  ) |> 
+  arrange(raw_rank)
 
+rankings |> 
+  flextable() |>
+  set_header_labels(
+    name = "Gauge",
+    Flow = "Flow (cfs)",
+    drain_area_va = "Drainage Area (mi²)",
+    flow_per_sqmi = "Normalized Flow (cfs/mi²)",
+    raw_rank = "Raw Rank",
+    norm_rank = "Normalized Rank"
+  ) |>
+  set_caption(paste0("Rankings for raw flow and normalized flow on ", my.date)) |>
+  autofit()
 ```
 
 **c.** Answer in 2–3 sentences: (1) do the raw and normalized rankings
 differ, and if so, which gauge changes most dramatically? (2) Why does
 per-area normalization matter for comparing gauges in the Colorado
 Basin? (3) Name one analysis where you would use raw discharge and one
-where you would use normalized discharge.
-
-> ...
+where you would use normalized discharge. (1) The raw and normalized
+rankings differ for all gauges except 'Colorado R near Davis Dam', since
+the gauge does not have flow data in 2023. The most dramatic change is
+for 'Roaring Fork at Glenwood Springs' (4th raw - 1st normalized) and
+'Colorado River near Grand Canyon'(1st raw - 4th normalized). (2)
+Per-area normalization doesn't only matter when comparing gauges in the
+Colorado basin, but when comparing any two gauges in any basin.
+Normalizing our flow to area ensures accurate comparison between gauged
+basins of different scales. (3) Raw discharge is useful for actual flow
+volume within a stream. For example, to calculate the amount of water
+flowing into a reservoir, you would need to know the raw discharge.
+Normalized discharge is useful for comparing . For example, a study
+might analyze a control and treatment basin for different land use
+effects on runoff, which would require normalization for accurate
+comparison. \> ...
 
 ------------------------------------------------------------------------
 
@@ -470,6 +541,11 @@ Hint: compute a 7-day rolling mean (e.g., `roll7`) with
 :::
 
 ```{r}
+flow_meta <- flow_meta |> 
+  group_by(site_no) |> 
+  arrange(Date) |> 
+  mutate(roll7 = zoo::rollmean(Flow, k = 7, fill = NA, align = "right")) |> 
+  ungroup()
 
 ```
 
@@ -515,6 +591,27 @@ table so every row carries its gauge's threshold.
 :::
 
 ```{r}
+lowflow_threshold <- flow_meta |> 
+  filter(year(Date) >= 1980, year(Date) <= 2010) |> 
+  group_by(site_no) |> 
+  summarize(low10q = quantile(Flow, probs = 0.1, na.rm = TRUE))
+
+lowflow <- flow_meta |> 
+  left_join(lowflow_threshold, by = "site_no")
+
+nrow(lowflow) == nrow(flow_meta)
+
+lowflow |>
+  summarize(
+    n_total        = n(),
+    n_missing_area = sum(is.na(low10q)),
+    pct_complete   = round(100 * mean(!is.na(low10q)), 1)
+  )
+
+#Low 10th percentile threshold for 09380000 should be 8340
+lowflow |>
+  filter(site_no == "09380000") |>
+  distinct(site_no, name, low10q)
 
 ```
 
@@ -522,7 +619,8 @@ table so every row carries its gauge's threshold.
 7-day rolling mean is below the gauge's 10th percentile threshold.
 
 ```{r}
-
+lowflow <- lowflow |> 
+  mutate(below_threshold = roll7 < low10q)
 ```
 
 **d.** For **Lees Ferry** (site `09380000`) — the Compact's primary
@@ -540,6 +638,15 @@ while the rolling mean is below threshold.
 :::
 
 ```{r}
+ggplot(lowflow |> filter(site_no == "09380000", 
+                         year(Date) >= 2000), aes(x = Date)) +
+  geom_line(aes(y = roll7), color = "blue") +
+  geom_ribbon(aes(ymin = low10q, ymax = if_else(below_threshold, roll7, low10q)), fill = "red", alpha = 0.5) +
+  geom_hline(aes(yintercept = low10q), linetype = "dashed") +
+  labs(title = "7-day Rolling Mean Discharge at Lees Ferry from 2000 - 2023\n(USGS Gauge: 09380000) ",
+       y = "Flow (cfs)",
+       caption ="Dashed line indicates the 10th percentile low-flow threshold.\nRed shading highlights periods when 7-day rolling mean is below threshold.") +
+  theme(plot.caption = element_text(hjust = 0))
 
 ```
 
@@ -556,10 +663,41 @@ computing per-year averages across a multi-year period.
 :::
 
 ```{r}
+lowflow_exceedance <- lowflow |> 
+  filter(site_no == "09380000", year(Date) >= 2000) |> 
+  group_by(period = if_else(year(Date) <= 2010, "2000-2010", "2011-2023")) |> 
+  summarize(
+    days_below_threshold = sum(below_threshold, na.rm = TRUE),
+    n_years = n_distinct(year(Date)),
+    avg_days_below_threshold = days_below_threshold / n_years
+  )
 
+lowflow_exceedance |>
+  flextable() |>
+  set_header_labels(
+    period = "Period",
+    days_below_threshold = "Total Days Below Threshold",
+    n_years = "Number of Years",
+    avg_days_below_threshold = "Average Days/Year Below Threshold"
+  ) |>
+  set_caption("Summary of Low-Flow Threshold at Lees Ferry") |>
+  autofit()
 ```
 
-> ...
+(1) The direction of low-flow exceedance frequency lowered between the
+    2000-2010 and 2011-2023 period, with a shift in average days below
+    threshold from \~36 to \~27.
+(2) It's hard to determine whether this is a shift in isolated dry years
+    or a persistent baseline change. Although a decreasing trend may
+    indicate isolated dry years, the visual plot shows differently. When
+    viewing the 7-day rolling graph of discharge, the period from
+    2020-2023 shows a general downward trend in flow, which could imply
+    a persistent baseline change.
+(3) The Colorado River Compact obligates certain water delivery amounts
+    to downstream states and Mexico. With Lee's Ferry serving as the
+    accounting point for these obligations, a shift in baseline flow may
+    necessitate renegotiation of obligations and changes in water
+    resource management strategies. \> ...
 
 ------------------------------------------------------------------------
 
@@ -584,7 +722,18 @@ the next calendar year (e.g., `if_else(month >= 10, year + 1, year)`).
 below the low-flow threshold (`sum(below_threshold)`).
 
 ```{r}
-
+lowflow <- lowflow |> 
+  mutate(
+    month = month(Date),
+    water_year = if_else(month >= 10, year(Date) + 1, year(Date))
+  ) |>
+  group_by(site_no, water_year) |> 
+  summarize(
+    total_q = sum(Flow, na.rm = TRUE),
+    peak_q = max(Flow, na.rm = TRUE),
+    days_below_threshold = sum(below_threshold, na.rm = TRUE)
+  ) |> 
+  ungroup()
 ```
 
 **c.** Plot **total annual discharge at Lees Ferry** by water year
@@ -599,7 +748,23 @@ for reference.
 :::
 
 ```{r}
+lees_ferry_annual <- lowflow |> 
+  filter(site_no == "09380000") |> 
+  mutate(
+    color = if_else(total_q >= median(total_q), 
+                    "Above Median", 
+                    "Below Median")
+  ) |>
+  ggplot(aes(x = water_year, y = total_q, fill = color)) +
+  geom_col() +
+  geom_hline(aes(yintercept = median(total_q)), linetype = "dashed") +
+  scale_fill_manual(values = c("Above Median" = "blue", "Below Median" = "red")) +
+  scale_y_continuous(labels = label_comma()) +
+  labs(title = "Total Annual Discharge at Lees Ferry between Water Year 1980 and 2023",
+       x = "Water Year",
+       y = "Total Discharge (cfs)")
 
+lees_ferry_annual
 ```
 
 In 2–3 sentences: (1) describe the direction and approximate timing of
