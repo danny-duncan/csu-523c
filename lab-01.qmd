@@ -8,12 +8,11 @@ format:
   html:
     code-fold: true
     toc: true
-    include-before-body: ../slides/header.html
-    include-after-body: ../slides/footer-annotations.html
 editor: 
   markdown: 
     wrap: 72
 ---
+
 
 ```{r}
 #| include: false
@@ -56,6 +55,7 @@ comparisons, threshold detection, basin-wide trend visualization, and a
 predictive model of the Compact's key accounting point.
 
 ------------------------------------------------------------------------
+
 ## Libraries
 
 Install and load the following packages. If any are missing, run
@@ -477,19 +477,20 @@ per-area normalization matter for comparing gauges in the Colorado
 Basin? (3) Name one analysis where you would use raw discharge and one
 where you would use normalized discharge.
 
-> The raw and normalized rankings differ for all gauges except 'Colorado R near Davis Dam', since the gauge does not have flow data in 2023. The most dramatic change is
-for 'Roaring Fork at Glenwood Springs' (4th raw - 1st normalized) and
-'Colorado River near Grand Canyon'(1st raw - 4th normalized).
-Per-area normalization doesn't only matter when comparing gauges in the
-Colorado basin, but when comparing any two gauges in any basin of different size.
-Normalizing our flow to area ensures accurate comparison between gauged
-basins of different scales. Raw discharge is useful for actual flow
-volume within a stream. For example, to calculate the amount of water
-flowing into a reservoir, you would need to know the raw discharge.
-Normalized discharge is useful for comparing . For example, a study
-might analyze a control and treatment basin for different land use
-effects on runoff, which would require normalization for accurate
-comparison.
+> The raw and normalized rankings differ for all gauges except 'Colorado
+> R near Davis Dam', since the gauge does not have flow data in 2023.
+> The most dramatic change is for 'Roaring Fork at Glenwood Springs'
+> (4th raw - 1st normalized) and 'Colorado River near Grand Canyon'(1st
+> raw - 4th normalized). Per-area normalization doesn't only matter when
+> comparing gauges in the Colorado basin, but when comparing any two
+> gauges in any basin of different size. Normalizing our flow to area
+> ensures accurate comparison between gauged basins of different scales.
+> Raw discharge is useful for actual flow volume within a stream. For
+> example, to calculate the amount of water flowing into a reservoir,
+> you would need to know the raw discharge. Normalized discharge is
+> useful for comparing . For example, a study might analyze a control
+> and treatment basin for different land use effects on runoff, which
+> would require normalization for accurate comparison.
 
 ------------------------------------------------------------------------
 
@@ -619,10 +620,12 @@ while the rolling mean is below threshold.
 
 ```{r}
 ggplot(lowflow |> filter(site_no == "09380000", 
-                         year(Date) >= 2000), aes(x = Date)) +
+                         year(Date) >= 2000 | year(Date) < 2024), aes(x = Date)) +
   geom_line(aes(y = roll7), color = "blue") +
   geom_ribbon(aes(ymin = low10q, ymax = if_else(below_threshold, roll7, low10q)), fill = "red", alpha = 0.5) +
   geom_hline(aes(yintercept = low10q), linetype = "dashed") +
+  scale_x_date(date_breaks = "2 years", date_labels = "%Y") +
+  scale_y_continuous(labels = label_comma()) +
   labs(title = "7-day Rolling Mean Discharge at Lees Ferry from 2000 - 2023\n(USGS Gauge: 09380000) ",
        y = "Flow (cfs)",
        caption ="Dashed line indicates the 10th percentile low-flow threshold.\nRed shading highlights periods when 7-day rolling mean is below threshold.") +
@@ -644,7 +647,7 @@ computing per-year averages across a multi-year period.
 
 ```{r}
 lowflow_exceedance <- lowflow |> 
-  filter(site_no == "09380000", year(Date) >= 2000) |> 
+  filter(site_no == "09380000", year(Date) >= 2000 | year(Date) < 2024) |> 
   group_by(period = if_else(year(Date) <= 2010, "2000-2010", "2011-2023")) |> 
   summarize(
     days_below_threshold = sum(below_threshold, na.rm = TRUE),
@@ -664,7 +667,19 @@ lowflow_exceedance |>
   autofit()
 ```
 
-> The direction of low-flow exceedance frequency lowered between the 2000-2010 and 2011-2023 period, with a shift in average days below threshold from \~36 to \~27. It's hard to determine whether this is a shift in isolated dry years or a persistent baseline change. Although a decreasing trend may indicate isolated dry years, the visual plot shows differently. When viewing the 7-day rolling graph of discharge, the period from 2020-2023 shows a general downward trend in flow, which could imply a persistent baseline change. The Colorado River Compact obligates certain water delivery amounts to downstream states and Mexico (1922 Colorado River Compact). With Lee's Ferry serving as the accounting point for these obligations, a shift in baseline flow may necessitate renegotiation of obligations and changes in water resource management strategies.
+> The direction of low-flow exceedance frequency lowered between the
+> 2000-2010 and 2011-2023 period, with a shift in average days below
+> threshold from \~36 to \~27. It's hard to determine whether this is a
+> shift in isolated dry years or a persistent baseline change. Although
+> a decreasing trend may indicate isolated dry years, the visual plot
+> shows differently. When viewing the 7-day rolling graph of discharge,
+> the period from 2020-2023 shows a general downward trend in flow,
+> which could imply a persistent baseline change. The Colorado River
+> Compact obligates certain water delivery amounts to downstream states
+> and Mexico (1922 Colorado River Compact). With Lee's Ferry serving as
+> the accounting point for these obligations, a shift in baseline flow
+> may necessitate renegotiation of obligations and changes in water
+> resource management strategies.
 
 ------------------------------------------------------------------------
 
@@ -680,9 +695,10 @@ October 1, 2022 through September 30, 2023.
 year is the calendar year of the ending September 30 — months October
 through December belong to the *next* water year.
 
-::::::: callout-tip
+::: callout-tip
 Hint: derive `month` from `Date` and set `water_year` so Oct–Dec map to
 the next calendar year (e.g., `if_else(month >= 10, year + 1, year)`).
+:::
 
 **b.** For each gauge and water year, compute: total annual discharge
 (`sum(Flow)`), peak daily discharge (`max(Flow)`), and number of days
@@ -694,6 +710,7 @@ lowflow <- lowflow |>
     month = month(Date),
     water_year = if_else(month >= 10, year(Date) + 1, year(Date))
   ) |>
+  filter(water_year <= 2023) |>
   group_by(site_no, name, water_year) |> 
   summarize(
     total_q = sum(Flow, na.rm = TRUE),
@@ -726,7 +743,6 @@ lees_ferry_annual <- lowflow |>
   geom_col() +
   geom_hline(aes(yintercept = median(total_q)), linetype = "dashed") +
   scale_fill_manual(values = c("Above Median" = "blue", "Below Median" = "red")) +
-  scale_x_continuous(breaks = seq(1980, 2024, by = 2)) +
   scale_y_continuous(labels = label_comma()) +
   labs(title = "Total Annual Discharge at Lees Ferry between Water Year 1980 and 2023",
        x = "Water Year",
@@ -745,7 +761,22 @@ out as an exception to the dominant pattern and what you know about its
 cause, and (3) explain what this pattern means for Compact water
 accounting.
 
-> Prior to the 2000s, there are two 5-year periods of well above-median-flow (1983-1987; 1995-2000) with a period of continuous below-median-flow between the two. After 2000, there is a shift to a more consistent average that hovers right below/above the median flow, relative to previous years. The most apparent exception to this dominant pattern is 2011, which sees a spike in flow well above the median. When viewing a snow-water equivalent (SWE) map for the Colorado River Basin in 2011, there is a significantly higher peak SWE compared to other recent years, with the majority of the basin showing above-average snow pack that persisted into the summer, leading to a higher amount of snow melt runoff (USDA NRCS Colorado Snow Products). Since the Colorado River Compact was signed and created during 1922, water accounting for obligations set within the compact are based on historical, higher flows. The shift to a lower median/baseline flow would require a re-negotiation to account for modern day flow dynamics.
+> Prior to the 2000s, there are two 5-year periods of well
+> above-median-flow (1983-1987; 1995-2000) with a period of continuous
+> below-median-flow between the two. After 2000, there is a shift to a
+> more consistent average that hovers right below/above the median flow,
+> relative to previous years. The most apparent exception to this
+> dominant pattern is 2011, which sees a spike in flow well above the
+> median. When viewing a snow-water equivalent (SWE) map for the
+> Colorado River Basin in 2011, there is a significantly higher peak SWE
+> compared to other recent years, with the majority of the basin showing
+> above-average snow pack that persisted into the summer, leading to a
+> higher amount of snow melt runoff (USDA NRCS Colorado Snow Products).
+> Since the Colorado River Compact was signed and created during 1922,
+> water accounting for obligations set within the compact are based on
+> historical, higher flows. The shift to a lower median/baseline flow
+> would require a re-negotiation to account for modern day flow
+> dynamics.
 
 ------------------------------------------------------------------------
 
@@ -820,7 +851,7 @@ keep labels readable.
 ```{r}
 annual_data |> 
   #Filter out incomplete 2024 wyear
-  filter(water_year <= 2023) %>% 
+  filter(water_year <= 2023) |>
 ggplot(aes(x = water_year, y = name, fill = -anomaly)) +
   geom_tile() +
   scale_fill_distiller(palette = "RdBu", na.value = "grey90", oob = scales::squish) +
@@ -840,7 +871,11 @@ years that appear as basin-wide anomalies — one dry, one wet — and name
 the climate event that caused each, and (3) explain what simultaneous
 basin-wide anomalies tell you that a single-gauge record cannot.
 
-> In general, the post-2000 drought signal appears across all gauges as indicated by the higher deviance from baseline. Between water years 1980-2023, 1984 is a basin wide wet-year, while 2002 is an exceptionally dry-year. The simultaneity of basin-wide anomalies indicates a climatic driver rather than localized weather phenomena.
+> In general, the post-2000 drought signal appears across all gauges as
+> indicated by the higher deviance from baseline. Between water years
+> 1980-2023, 1984 is a basin wide wet-year, while 2002 is an
+> exceptionally dry-year. The simultaneity of basin-wide anomalies
+> indicates a climatic driver rather than localized weather phenomena.
 
 ------------------------------------------------------------------------
 
@@ -868,7 +903,6 @@ compute weighted longitude/latitude per year as sum(coord \* total_flow)
 / sum(total_flow). This is your third join — verify row counts, NAs, and
 spot-check known values.
 :::
-:::::::
 
 Note: mapping below uses `map_data("state")`; if `map_data()` is not
 available install the `maps` package (`install.packages("maps")`) or use
@@ -952,7 +986,17 @@ weighted latitude suggests about which part of the basin is becoming
 proportionally more important to total flow — and why that matters for
 water managers downstream.
 
-> The two years that show a dramatic northward spike in the weighted center of the Colorado Basin are 1993 and 2023. Both of these water years show above-average snowpack in the Colorado river headwaters, leading to higher spring runoff within the upper basin. The long-term upward trend in weighted latitude suggests that the northern basins contribute to a larger proportion of the total basin flow as opposed to southern basins. This matters for water managers downstream for two primary reasons: (1) the reliability of flow in downstream tributaries may decrease as water is used upstream, and (2) the timing and magnitude of flow will arrive earlier as snowpack decreases and snowmelt shifts under warmer conditions.
+> The two years that show a dramatic northward spike in the weighted
+> center of the Colorado Basin are 1993 and 2023. Both of these water
+> years show above-average snowpack in the Colorado river headwaters,
+> leading to higher spring runoff within the upper basin. The long-term
+> upward trend in weighted latitude suggests that the northern basins
+> contribute to a larger proportion of the total basin flow as opposed
+> to southern basins. This matters for water managers downstream for two
+> primary reasons: (1) the reliability of flow in downstream tributaries
+> may decrease as water is used upstream, and (2) the timing and
+> magnitude of flow will arrive earlier as snowpack decreases and
+> snowmelt shifts under warmer conditions.
 
 ------------------------------------------------------------------------
 
@@ -979,8 +1023,6 @@ Monsoon, Low-flow, Winter.
 Hint: create `season` with `case_when()` mapping month ranges to labels
 and convert to a factor with hydrological order: Snowmelt, Monsoon,
 Low-flow, Winter.
-:::
-
 :::
 
 ```{r}
@@ -1050,7 +1092,13 @@ peak timing trend, (2) is it statistically visible or buried in noise?
 reservoir managers trying to capture spring runoff before it passes
 downstream?
 
-> The direction and magnitdue of peak timing loosely trend updwards, meaning that peak 7-day flows are occuring later in the year from the start to end of our study period. Although there is a slight grouping of values higher between 2010 - 2020, the trend is generally buried in noise. An earlier peak flow timing of two weeks would have large implications for reservoir managers as they would have to divert flow to reservoirs earlier in the year than currently anticipated.
+> The direction and magnitdue of peak timing loosely trend updwards,
+> meaning that peak 7-day flows are occuring later in the year from the
+> start to end of our study period. Although there is a slight grouping
+> of values higher between 2010 - 2020, the trend is generally buried in
+> noise. An earlier peak flow timing of two weeks would have large
+> implications for reservoir managers as they would have to divert flow
+> to reservoirs earlier in the year than currently anticipated.
 
 ------------------------------------------------------------------------
 
@@ -1159,7 +1207,16 @@ tributaries between the two gauges, so an above-average headwater year
 compounds as it moves downstream.
 :::
 
-> The model has an adjusted R² of 0.6572, indicating that roughly 65% of the variance in log_lees can be explained by the log_glenwood and season. The p-value of 4.114e-08 indicates a statistically significant relationship between our dependent and independent variables. The log_glenwood coefficient being 1.79 indicates a strong positive relationship, meaning that a 1% increase in glenwoods flow leads to a 1.8% increase in flow at lees ferry. Our negative interaction terms for the log-glenwood:<season> estimates tell us that there is a strong negative correlation between lees flow and glenwood flow during the monsoon, low flow, and winter seasons.
+> The model has an adjusted R² of 0.6572, indicating that roughly 65% of
+> the variance in log_lees can be explained by the log_glenwood and
+> season. The p-value of 4.114e-08 indicates a statistically significant
+> relationship between our dependent and independent variables. The
+> log_glenwood coefficient being 1.79 indicates a strong positive
+> relationship, meaning that a 1% increase in glenwoods flow leads to a
+> 1.8% increase in flow at lees ferry. Our negative interaction terms
+> for the log-glenwood:<season> estimates tell us that there is a strong
+> negative correlation between lees flow and glenwood flow during the
+> monsoon, low flow, and winter seasons.
 
 ------------------------------------------------------------------------
 
@@ -1240,7 +1297,16 @@ there a tail that concerns you? (3) Name two additional predictors that
 would most improve this model and explain the physical mechanism behind
 each.
 
-> The outlier water year within our predicted vs actual scatter plot is 1983. When reviewing the historical flows for 1983, there is a significant spike in flow at Lees Ferry that is not reflected in at glenwood springs. Log-log models tend to reduce the influence of extreme events since all values are fitted to a linear. The residuals appear to have a slight right skew that can be concerning. Two additional predictors that would most improve this model are (1) snow water equivalent (SWE) as it directly influences the amount of runoff during the snowmelt season, and (2) antecedent soil moisture levels as this can affect surface runoff to streams versus infiltration. 
+> The outlier water year within our predicted vs actual scatter plot is
+> 1983. When reviewing the historical flows for 1983, there is a
+> significant spike in flow at Lees Ferry that is not reflected in at
+> glenwood springs. Log-log models tend to reduce the influence of
+> extreme events since all values are fitted to a linear. The residuals
+> appear to have a slight right skew that can be concerning. Two
+> additional predictors that would most improve this model are (1) snow
+> water equivalent (SWE) as it directly influences the amount of runoff
+> during the snowmelt season, and (2) antecedent soil moisture levels as
+> this can affect surface runoff to streams versus infiltration.
 
 ------------------------------------------------------------------------
 

@@ -1,7 +1,6 @@
----
 project:
   type: website
-  output-dir: docs
+  output-dir: /docs
   render:
   - "*.qmd"
 
@@ -11,4 +10,3 @@ website:
 author:
   name: Daniel Duncan
   email: d.duncan@colostate.edu
----
