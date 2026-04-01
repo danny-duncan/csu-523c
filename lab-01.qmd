@@ -1310,20 +1310,6 @@ each.
 
 ------------------------------------------------------------------------
 
-# Going Further (ungraded)
-
-The model in Q9 predicts Lees Ferry from a single upstream gauge.
-`dataRetrieval` gives you access to hundreds more across the basin — and
-to SNOTEL snow water equivalent data, streamflow statistics, and
-groundwater levels. Could a multi-gauge ensemble prediction outperform
-the single-gauge model? Could peak SWE in March predict the following
-June's flow at Lees Ferry months before snowmelt begins?
-
-These are real operational forecasting questions that USBR and state
-water agencies work on every year. The data is already in your hands.
-
-------------------------------------------------------------------------
-
 # Summary
 
 In this lab you built a complete analytical pipeline for one of the most
@@ -1384,15 +1370,3 @@ objects (`my.date`), and included any small checks or assertions. -
 **Clarity & Presentation:** readable code, labeled tables/plots,
 captions for `flextable` outputs, and a clear 1-paragraph
 interpretation.
-
-# Submission
-
-1.  Render: `quarto render lab-01.qmd`
-2.  Push: `git add -A && git commit -m "lab 1 complete" && git push`
-3.  Activate GitHub Pages: **GitHub → Settings → Pages → Deploy from
-    branch → main**
-4.  Submit your live URL to Canvas:
-    `https://USERNAME.github.io/csu-523c/lab-01.html`
-
-Add this project to your personal website with a brief description — it
-counts toward end-of-semester extra credit.
