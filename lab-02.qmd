@@ -50,8 +50,7 @@ Install any missing packages with `install.packages("packagename")`, then load:
 ```{r}
 #| code-fold: false
 pacman::p_load(
-  tidyverse, sf, units, tigris, rnaturalearth, gghighlight, ggrepel, flextable
-)
+  tidyverse, sf, units, tigris, rnaturalearth, gghighlight, ggrepel, flextable, leaflet)
 
 options(tigris_use_cache = TRUE)
 ```
@@ -665,7 +664,8 @@ leaflet() %>%
   # all city markers
   addCircleMarkers(data = cities_4326, group = "All Cities", radius = 3, weight = 1, 
                    color = "white", fillOpacity = 0.7, fillColor = ~pal(drop_units(dist_to_border)),
-                   popup = make_popup(cities_4326)
+                   popup = make_popup(cities_4326),
+                   clusterOptions = markerClusterOptions(disableClusteringAtZoom = 6)
                    ) %>%
   # equidistant zone markers
   addCircleMarkers(data = eq_cities_4326, group = "Equidistant Zone", 
@@ -694,6 +694,7 @@ leaflet() %>%
 
 **Methods note**: In 2–3 sentences, describe the CRS transformation needed to convert from `eqdc` to `leaflet`-compatible coordinates, and any design choices you made to keep the map responsive (e.g., filtering, clustering, or simplifying geometries).
 
+> In order to convert 'eqdc'to 'leaflet'-compatible coordinates, st_transform() was used to reproject the data to ESPG:4326, the standard web mapping CRS. To keep the map responsive, the "all cities" layer is clustered until zoom level 6, at which the individual city markers are shown. This allows the map to load quickly at the national scale while providing individual details when zoomed to a regional level.
 ---
 
 # Summary
